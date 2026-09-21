@@ -1,0 +1,6 @@
+streamlit>=1.36
+pypdf>=4.2
+sentence-transformers>=2.7
+faiss-cpu>=1.8
+requests>=2.31
+numpy>=1.26
