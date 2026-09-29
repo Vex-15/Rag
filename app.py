@@ -17,10 +17,9 @@ import faiss
 
 
 # Config
-# small, fast, runs locally, no API key needed
 EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-CHAT_MODEL_NAME = "llama3.1"
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+CHAT_MODEL_NAME = "openai/gpt-oss-20b"
 CHUNK_SIZE = 800                          # characters per chunk
 CHUNK_OVERLAP = 150                       # overlap between chunks
 TOP_K = 4                                 # number of chunks retrieved per question
@@ -144,30 +143,37 @@ Question: {question}
 Follow the system rules strictly. If the context above does not contain the answer,
 say you cannot answer based on the documents — do not guess."""
 
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
     response = requests.post(
-        f"{OLLAMA_HOST}/api/chat",
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers=headers,
         json={
             "model": model,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            "stream": False,
-            "options": {"temperature": 0.1},
+            "temperature": 0.1,
         },
         timeout=120,
     )
     response.raise_for_status()
-    return response.json()["message"]["content"]
+    return response.json()["choices"][0]["message"]["content"]
 
 
-def list_ollama_models():
+def list_groq_models():
     try:
-        response = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
+        response = requests.get("https://api.groq.com/openai/v1/models", headers=headers, timeout=10)
         response.raise_for_status()
-        return [model["name"] for model in response.json().get("models", [])]
-    except (requests.RequestException, ValueError, KeyError, TypeError):
-        return []
+        models = [m["id"] for m in response.json().get("data", [])]
+        # Filter out audio models if we just want chat, but for now return all
+        return models if models else [CHAT_MODEL_NAME]
+    except Exception:
+        return [CHAT_MODEL_NAME]
 
 
 # Session state
@@ -184,14 +190,9 @@ if "chat_history" not in st.session_state:
 # Sidebar
 with st.sidebar:
     st.header(" Settings")
-    ollama_models = list_ollama_models()
-    if ollama_models:
-        selected_model = st.selectbox("Ollama model", ollama_models,
-                                      index=(ollama_models.index(CHAT_MODEL_NAME)
-                                             if CHAT_MODEL_NAME in ollama_models else 0))
-    else:
-        selected_model = st.text_input("Ollama model", value=CHAT_MODEL_NAME)
-    st.caption(f"Ollama server: {OLLAMA_HOST}")
+    groq_models = list_groq_models()
+    selected_model = st.selectbox("Groq Model", groq_models, index=(groq_models.index(CHAT_MODEL_NAME) if CHAT_MODEL_NAME in groq_models else 0))
+    st.caption("Powered by Groq API")
 
     st.divider()
     st.header(" Upload documents")
@@ -264,7 +265,7 @@ if question:
                 try:
                     answer = call_llm(question, contexts, model=selected_model)
                 except requests.exceptions.ConnectionError:
-                    answer = f" Could not connect to Ollama at {OLLAMA_HOST}. Is `ollama serve` running?"
+                    answer = " Could not connect to Groq API."
                     st.warning(answer)
                 except Exception as e:
                     answer = f" Error calling the LLM: {e}"
