@@ -7,7 +7,7 @@ A simple Retrieval-Augmented Generation (RAG) agent you can run locally with Str
   (`all-MiniLM-L6-v2` — free, no API key required for embeddings).
 - Chunks are stored in an in-memory **FAISS** vector database.
 - Ask questions in a chat UI. The agent retrieves the most relevant chunks
-  and asks a local Ollama model (`llama3.1` by default) to answer **only**
+  and queries the Groq API (dynamically fetching available models) to answer **only**
   from that retrieved context.
 - If your question isn't answerable from the uploaded documents, the agent
   refuses instead of making something up or answering from general knowledge.
@@ -20,21 +20,12 @@ source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## 2. Install and start Ollama
+## 2. Setup Groq API Key
 
-Install Ollama from https://ollama.com/download, then pull the default chat
-model and start the local server:
-
-```bash
-ollama pull llama3.1
-ollama serve
-```
-
-The app connects to `http://localhost:11434` by default. To use another
-Ollama server, set `OLLAMA_HOST` before launching:
+The app uses Groq for fast LLM inference. You must set your `GROQ_API_KEY` in the environment before launching:
 
 ```bash
-export OLLAMA_HOST="http://localhost:11434"     # Windows (PowerShell): $env:OLLAMA_HOST="http://localhost:11434"
+export GROQ_API_KEY="your-api-key-here"         # Windows (PowerShell): $env:GROQ_API_KEY="your-api-key-here"
 ```
 
 ## 3. Run
@@ -47,8 +38,8 @@ Then open the local URL Streamlit prints (usually http://localhost:8501).
 
 ## 4. Use it
 
-1. Select an Ollama model in the sidebar, or enter its name if the model list
-   is unavailable.
+1. Select a Groq model in the sidebar. The available models are dynamically loaded
+   from your API key's permissions.
 2. Upload one or more PDFs.
 3. Wait for "Indexed N new file(s)" — this means the text has been chunked,
    embedded, and added to the FAISS vector index.
@@ -71,7 +62,7 @@ Two layers enforce this:
 
 ## Customizing
 
-- **Swap the LLM provider**: replace the Ollama request in `call_llm()` with
+- **Swap the LLM provider**: replace the Groq request in `call_llm()` with
   your provider of choice — the retrieval/vector-DB part is provider-agnostic.
 - **Chunk size / overlap**: tune `CHUNK_SIZE` and `CHUNK_OVERLAP` in
   `app.py`.
@@ -87,4 +78,4 @@ Two layers enforce this:
 
 - Only PDFs are supported out of the box (easy to extend to .docx/.txt by
   adding another extractor and calling `build_chunks_for_file`-style logic).
-- Everything runs locally through Ollama; no API key is needed.
+- Embeddings run locally; text generation uses the Groq API.
